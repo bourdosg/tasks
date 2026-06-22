@@ -162,6 +162,8 @@
     /* SECTION MANAGER */
     .sec-mgr-item{display:flex;align-items:center;gap:9px;padding:11px 0;border-bottom:1px solid var(--border)}
     .sec-mgr-item:last-child{border-bottom:none}
+    .sec-mgr-item.drag-over{background:#EFF6FF;border-radius:8px}
+    .sec-mgr-item.dragging{opacity:.35}
     .sec-mgr-emoji{font-size:18px;flex-shrink:0}
     .sec-mgr-label{flex:1;font-size:14px;font-weight:500}
     .sec-mgr-badge{font-size:10px;background:#F3F4F6;color:var(--muted);padding:2px 7px;border-radius:99px;white-space:nowrap}
@@ -538,12 +540,73 @@ function deleteSec(id) {
   save(); render(); renderSecMgr(); toast('Deleted');
 }
 
-function moveSecOrder(id, dir) {
-  const idx = sections.findIndex(s => s.id === id);
-  const nIdx = idx + dir;
-  if (nIdx < 0 || nIdx >= sections.length) return;
-  [sections[idx], sections[nIdx]] = [sections[nIdx], sections[idx]];
-  save(); render(); renderSecMgr();
+// Section drag state (separate from task drag)
+let secDrag = null;
+
+function startSecDrag(x, y, secId, srcEl) {
+  const sec = secById(secId); if (!sec) return;
+  const ghost = document.createElement('div'); ghost.className = 'drag-ghost';
+  ghost.textContent = sec.emoji + ' ' + sec.label; document.body.appendChild(ghost);
+  placeGhost(ghost, x, y);
+  srcEl.classList.add('dragging');
+  secDrag = { secId, srcEl, ghost };
+}
+
+function setupSecDrag(handle, secId) {
+  handle.addEventListener('mousedown', e => {
+    if (e.button !== 0) return; e.preventDefault();
+    startSecDrag(e.clientX, e.clientY, secId, handle.closest('.sec-mgr-item'));
+  });
+  handle.addEventListener('touchstart', e => {
+    e.preventDefault(); const t = e.touches[0];
+    startSecDrag(t.clientX, t.clientY, secId, handle.closest('.sec-mgr-item'));
+  }, { passive: false });
+}
+
+function getSecTarget(x, y) {
+  if (!secDrag) return null;
+  secDrag.ghost.style.visibility = 'hidden';
+  const el = document.elementFromPoint(x, y);
+  secDrag.ghost.style.visibility = '';
+  const item = el?.closest('.sec-mgr-item');
+  if (item && item !== secDrag.srcEl) return item;
+  return null;
+}
+
+document.addEventListener('mousemove', e => {
+  if (!secDrag) return;
+  placeGhost(secDrag.ghost, e.clientX, e.clientY);
+  document.querySelectorAll('.sec-mgr-item.drag-over').forEach(el => el.classList.remove('drag-over'));
+  getSecTarget(e.clientX, e.clientY)?.classList.add('drag-over');
+});
+document.addEventListener('mouseup', e => {
+  if (!secDrag) return;
+  finishSecDrag(e.clientX, e.clientY);
+});
+document.addEventListener('touchmove', e => {
+  if (!secDrag) return; e.preventDefault();
+  const t = e.touches[0]; placeGhost(secDrag.ghost, t.clientX, t.clientY);
+  document.querySelectorAll('.sec-mgr-item.drag-over').forEach(el => el.classList.remove('drag-over'));
+  getSecTarget(t.clientX, t.clientY)?.classList.add('drag-over');
+}, { passive: false });
+document.addEventListener('touchend', e => {
+  if (!secDrag) return; const t = e.changedTouches[0]; finishSecDrag(t.clientX, t.clientY);
+});
+
+function finishSecDrag(x, y) {
+  secDrag.ghost.remove(); secDrag.srcEl.classList.remove('dragging');
+  const target = getSecTarget(x, y);
+  document.querySelectorAll('.sec-mgr-item.drag-over').forEach(el => el.classList.remove('drag-over'));
+  if (target) {
+    const toId = target.dataset.secid;
+    const fi = sections.findIndex(s => s.id === secDrag.secId);
+    const ti = sections.findIndex(s => s.id === toId);
+    if (fi >= 0 && ti >= 0) {
+      const [moved] = sections.splice(fi, 1); sections.splice(ti, 0, moved);
+      save(); render(); renderSecMgr();
+    }
+  }
+  secDrag = null;
 }
 
 // ═══ RENDER ═══
@@ -777,7 +840,7 @@ function buildSecGrid(selId) {
     b.onclick=()=>{ grid.querySelectorAll('.sec-opt').forEach(x=>x.classList.remove('sel')); b.classList.add('sel'); addSection=s.id; document.getElementById('tagGrp').style.display=''; };
     grid.appendChild(b);
   });
-  document.getElementById('tagGrp').style.display = secById(selId)?.todayCol==='left'?'none':'';
+  document.getElementById('tagGrp').style.display = '';
 }
 
 function openState(id) {
@@ -817,20 +880,18 @@ function renderCompList() {
 function openSecMgr() { renderSecMgr(); document.getElementById('secMgrOverlay').classList.add('open'); }
 function renderSecMgr() {
   const list = document.getElementById('secMgrList'); list.innerHTML='';
-  sections.forEach((sec,i) => {
+  sections.forEach(sec => {
     const count = tasks.filter(t=>t.section===sec.id).length;
-    const el = document.createElement('div'); el.className='sec-mgr-item';
-    el.innerHTML=`<span class="sec-mgr-emoji">${sec.emoji}</span>
+    const el = document.createElement('div'); el.className='sec-mgr-item'; el.dataset.secid=sec.id;
+    el.innerHTML=`<span class="drag-handle" style="margin-top:0;color:#bbb">≡</span>
+      <span class="sec-mgr-emoji">${sec.emoji}</span>
       <span class="sec-mgr-label">${esc(sec.label)}</span>
       ${sec.todayCol?`<span class="sec-mgr-badge">Today ${sec.todayCol}</span>`:''}
       <span class="sec-mgr-count">${count}</span>
       <button class="icon-btn" onclick="openEditSec('${sec.id}')">✏️</button>
-      ${!sec.todayCol?`<button class="icon-btn del" onclick="deleteSec('${sec.id}')">🗑</button>`:'<span style="width:29px"></span>'}
-      <div style="display:flex;flex-direction:column;gap:1px">
-        <button class="icon-btn" style="font-size:11px;padding:2px 5px" onclick="moveSecOrder('${sec.id}',-1)"${i===0?' disabled style="opacity:.3"':''}>▲</button>
-        <button class="icon-btn" style="font-size:11px;padding:2px 5px" onclick="moveSecOrder('${sec.id}',1)"${i===sections.length-1?' disabled style="opacity:.3"':''}>▼</button>
-      </div>`;
+      ${!sec.todayCol?`<button class="icon-btn del" onclick="deleteSec('${sec.id}')">🗑</button>`:'<span style="width:29px"></span>'}`;
     list.appendChild(el);
+    setupSecDrag(el.querySelector('.drag-handle'), sec.id);
   });
 }
 
