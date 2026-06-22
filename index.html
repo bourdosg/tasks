@@ -103,6 +103,11 @@
     .done-btn{width:26px;height:26px;border:none;background:transparent;color:#22C55E;font-size:14px;cursor:pointer;flex-shrink:0;border-radius:6px;display:flex;align-items:center;justify-content:center}
     .done-btn:active{background:#F0FDF4}
 
+    /* GROUP HEADER */
+    .group-hdr{padding:14px 4px 4px;display:flex;align-items:center;justify-content:space-between}
+    .group-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.09em}
+    .group-count{font-size:10px;color:#bbb}
+
     /* ADD SECTION BTN */
     .add-sec-row{background:var(--card);border-radius:14px;border:1.5px dashed var(--border);padding:12px;text-align:center;cursor:pointer;font-size:13px;color:var(--muted);display:flex;align-items:center;justify-content:center;gap:7px}
     .add-sec-row:active{opacity:.7}
@@ -436,9 +441,8 @@ function submitTask() {
     }
     toast('Updated');
   } else {
-    const isLeftToday = secById(addSection)?.todayCol === 'left';
     tasks.push({ id:uid(), section:addSection, label:lbl, state:'open',
-      tags: isLeftToday ? [] : (addTag ? [addTag] : []),
+      tags: addTag ? [addTag] : [],
       carryover:false, recurring:addRecur, created:today(),
       order: secTasks(addSection).length });
     toast('Added');
@@ -576,8 +580,15 @@ function render() {
     });
   }
 
-  // ── REGULAR SECTIONS ──
-  sections.filter(s => !s.todayCol).forEach(sec => {
+  // ── OTHER TASKS GROUP ──
+  const regularSecs = sections.filter(s => !s.todayCol);
+  const otherTotal = tasks.filter(t => regularSecs.some(s => s.id === t.section)).length;
+
+  const groupHdr = document.createElement('div'); groupHdr.className = 'group-hdr';
+  groupHdr.innerHTML = `<span class="group-title">📋 Other Tasks</span><span class="group-count">${otherTotal} task${otherTotal!==1?'s':''}</span>`;
+  root.appendChild(groupHdr);
+
+  regularSecs.forEach(sec => {
     const st = secTasks(sec.id);
     const ip = st.filter(t=>t.state==='inprogress').length, wa = st.filter(t=>t.state==='waiting').length;
     let meta = String(st.length); if (ip) meta+=` · ${ip} active`; if (wa) meta+=` · ${wa} wait`;
@@ -763,7 +774,7 @@ function buildSecGrid(selId) {
   sections.forEach(s => {
     const b = document.createElement('button'); b.className='sec-opt'+(s.id===selId?' sel':'');
     b.innerHTML=`${s.emoji} ${esc(s.label)}`;
-    b.onclick=()=>{ grid.querySelectorAll('.sec-opt').forEach(x=>x.classList.remove('sel')); b.classList.add('sel'); addSection=s.id; document.getElementById('tagGrp').style.display=s.todayCol==='left'?'none':''; };
+    b.onclick=()=>{ grid.querySelectorAll('.sec-opt').forEach(x=>x.classList.remove('sel')); b.classList.add('sel'); addSection=s.id; document.getElementById('tagGrp').style.display=''; };
     grid.appendChild(b);
   });
   document.getElementById('tagGrp').style.display = secById(selId)?.todayCol==='left'?'none':'';
