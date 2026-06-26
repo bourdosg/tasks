@@ -460,6 +460,10 @@ function setState(id, state) {
     toast('Done ✓');
   } else if (state === 'delete') {
     tasks = tasks.filter(x => x.id !== id); toast('Deleted');
+  } else if (state === 'remove') {
+    const t = tasks.find(x => x.id === id);
+    if (t) { completedTasks.unshift({...t, completedAt: new Date().toISOString()}); if (completedTasks.length > 150) completedTasks = completedTasks.slice(0,150); }
+    tasks = tasks.filter(x => x.id !== id); toast('Removed');
   } else {
     const t = tasks.find(x => x.id === id); if (!t) return;
     t.state = state;
@@ -693,8 +697,7 @@ function renderTasks(container, st, secId) {
       <div class="task-body">
         <div class="task-lbl" onclick="openEditTask('${t.id}')">${esc(t.label)}</div>
         ${pills ? `<div class="task-meta">${pills}</div>` : ''}
-      </div>
-      <button class="done-btn" onclick="setState('${t.id}','done')">✓</button>`;
+      </div>`;
     container.appendChild(el);
     setupDrag(el.querySelector('.drag-handle'), t.id);
   });
@@ -848,14 +851,13 @@ function openState(id) {
   document.getElementById('stateLbl').textContent = t.label;
   const st = secTasks(t.section), idx = st.findIndex(x=>x.id===id);
   const actions = [
-    { icon:'✏️', label:'Edit',           fn:`openEditTask('${id}');closeSheet('stateOverlay')`, show:true },
-    { icon:'○',  label:'Mark Open',       fn:`setState('${id}','open')`,        show:t.state!=='open' },
-    { icon:'▶',  label:'In Progress',     fn:`setState('${id}','inprogress')`,  show:t.state!=='inprogress' },
-    { icon:'⏸',  label:'Waiting On',      fn:`setState('${id}','waiting')`,     show:t.state!=='waiting' },
-    { icon:'✓',  label:'Mark Done',       fn:`setState('${id}','done')`,         show:true },
-    { icon:'⬆',  label:'Move Up',         fn:`moveTask('${id}',-1)`,             show:idx>0 },
-    { icon:'⬇',  label:'Move Down',       fn:`moveTask('${id}',1)`,              show:idx<st.length-1 },
-    { icon:'🗑',  label:'Delete',          fn:`setState('${id}','delete')`,       show:true, red:true },
+    { icon:'✓',  label:'Completed',    fn:`setState('${id}','done')`,                          show:true },
+    { icon:'▶',  label:'In Progress',  fn:`setState('${id}','inprogress')`,                    show:t.state!=='inprogress' },
+    { icon:'⏸',  label:'Waiting On',   fn:`setState('${id}','waiting')`,                       show:t.state!=='waiting' },
+    { icon:'✏️', label:'Edit',          fn:`openEditTask('${id}');closeSheet('stateOverlay')`,  show:true },
+    { icon:'🗑',  label:'Delete',       fn:`setState('${id}','delete')`,                        show:true, red:true },
+    { icon:'✕',  label:'Remove',       fn:`setState('${id}','remove')`,                        show:true, red:true },
+    { icon:'⬇',  label:'Move Down',    fn:`moveTask('${id}',1)`,                               show:idx<st.length-1 },
   ];
   document.getElementById('stateActions').innerHTML = actions.filter(a=>a.show).map(a=>
     `<div class="action-item${a.red?' red':''}" onclick="${esc(a.fn)}"><span class="action-icon">${a.icon}</span>${a.label}</div>`
@@ -886,7 +888,7 @@ function renderSecMgr() {
     el.innerHTML=`<span class="drag-handle" style="margin-top:0;color:#bbb">≡</span>
       <span class="sec-mgr-emoji">${sec.emoji}</span>
       <span class="sec-mgr-label">${esc(sec.label)}</span>
-      ${sec.todayCol?`<span class="sec-mgr-badge">Today ${sec.todayCol}</span>`:''}
+      ${sec.todayCol?`<span class="sec-mgr-badge">Today · ${sec.label}</span>`:''}
       <span class="sec-mgr-count">${count}</span>
       <button class="icon-btn" onclick="openEditSec('${sec.id}')">✏️</button>
       ${!sec.todayCol?`<button class="icon-btn del" onclick="deleteSec('${sec.id}')">🗑</button>`:'<span style="width:29px"></span>'}`;
