@@ -849,7 +849,6 @@ function buildSecGrid(selId) {
 function openState(id) {
   const t = tasks.find(x=>x.id===id); if (!t) return;
   document.getElementById('stateLbl').textContent = t.label;
-  const st = secTasks(t.section), idx = st.findIndex(x=>x.id===id);
   const actions = [
     { icon:'✓',  label:'Completed',    fn:`setState('${id}','done')`,                          show:true },
     { icon:'▶',  label:'In Progress',  fn:`setState('${id}','inprogress')`,                    show:t.state!=='inprogress' },
@@ -857,7 +856,6 @@ function openState(id) {
     { icon:'✏️', label:'Edit',          fn:`openEditTask('${id}');closeSheet('stateOverlay')`,  show:true },
     { icon:'🗑',  label:'Delete',       fn:`setState('${id}','delete')`,                        show:true, red:true },
     { icon:'✕',  label:'Remove',       fn:`setState('${id}','remove')`,                        show:true, red:true },
-    { icon:'⬇',  label:'Move Down',    fn:`moveTask('${id}',1)`,                               show:idx<st.length-1 },
   ];
   document.getElementById('stateActions').innerHTML = actions.filter(a=>a.show).map(a=>
     `<div class="action-item${a.red?' red':''}" onclick="${esc(a.fn)}"><span class="action-icon">${a.icon}</span>${a.label}</div>`
